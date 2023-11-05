@@ -1,6 +1,7 @@
 import numpy as np
 import faiss
 
+
 class FastNearestNeighbors:
     def __init__(
         self, metric="mahalanobis", index_type="flatl2", n_cells=100, n_probes=10
