@@ -61,10 +61,22 @@ class matching(object):
             mod = FastNearestNeighbors(**kwargs)
             # find control neighbours for treat
             treat_nn_mod = mod.fit(X[w == 0, :])
-            treat_neighbours = treat_nn_mod.kneighbors(X[w == 1, :], 1)[1]
+            treat_neighbours = treat_nn_mod.kneighbors(X[w == 1, :], self.k)[1]
             # find treat neighbours for control
             ctrl_nn_mod = mod.fit(X[w == 1, :])
-            ctrl_neighbours = ctrl_nn_mod.kneighbors(X[w == 0, :], 1)[1]
+            ctrl_neighbours = ctrl_nn_mod.kneighbors(X[w == 0, :], self.k)[1]
+            y1hat, y0hat = y.copy(), y.copy()
+            np.put(
+                y1hat,
+                np.argwhere(w == 0), # replace y1hat for control units
+                y[w == 1][ctrl_neighbours].mean(axis = 1) # average over k neighbours
+            )
+            np.put(
+                y0hat,
+                np.argwhere(w == 1),
+                y[w == 0][treat_neighbours].mean(axis = 1),
+            )
+            tauhat_m = y1hat.mean() - y0hat.mean()
             if self.bias_corr_mod:
                 # outcome model - μ̂1 (Xi) , μ̂0(Xi )
                 muhat1 = self.bias_corr_mod.fit(X[w == 1], y[w == 1])
@@ -87,8 +99,6 @@ class matching(object):
                 # residual
                 R_i = np.where(w == 1, y - mu1_i, y - mu0_i)
                 # ψ̂i = μ̂1 (Xi) − μ̂0(Xi ) + (2Wi − 1)(1 + Ki/M ){Yi − μ̂Wi (Xi)}
-                psi_i = mu1_i - mu0_i + (2 * w - 1) * (1 + K_i / self.k) * R_i
+                psi_i = tauhat_m + (2 * w - 1) * (1 + K_i / self.k) * R_i
                 return psi_i.mean(), np.sqrt(1 / n * psi_i.var())
-            return (
-                y[w == 1][ctrl_neighbours].mean() - y[w == 0][treat_neighbours].mean()
-            )
+            return tauhat_m
