@@ -68,13 +68,13 @@ class matching(object):
             y1hat, y0hat = y.copy(), y.copy()
             np.put(
                 y1hat,
-                np.argwhere(w == 0), # replace y1hat for control units
-                y[w == 1][ctrl_neighbours].mean(axis = 1) # average over k neighbours
+                np.argwhere(w == 0),  # replace y1hat for control units
+                y[w == 1][ctrl_neighbours].mean(axis=1),  # average over k neighbours
             )
             np.put(
                 y0hat,
                 np.argwhere(w == 1),
-                y[w == 0][treat_neighbours].mean(axis = 1),
+                y[w == 0][treat_neighbours].mean(axis=1),
             )
             tauhat_m = y1hat.mean() - y0hat.mean()
             if self.bias_corr_mod:
