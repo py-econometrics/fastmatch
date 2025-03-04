@@ -4,7 +4,11 @@ import faiss
 
 class FastNearestNeighbors:
     def __init__(
-        self, metric="mahalanobis", index_type="flatl2", n_cells=100, n_probes=10
+        self,
+        metric: str = "mahalanobis",
+        index_type: str = "flatl2",
+        n_cells: int = 100,
+        n_probes: int = 10,
     ):
         """
         NearestNeighbors object using faiss for speed. Identical API to sklearn but faster.
@@ -31,7 +35,10 @@ class FastNearestNeighbors:
         self.n_probes = n_probes
         self.index_type = index_type
 
-    def fit(self, X):
+    def fit(
+        self,
+        X: np.ndarray,
+    ):
         """Create faiss index and train with data.
 
         Args:
@@ -60,7 +67,11 @@ class FastNearestNeighbors:
             )
         return self
 
-    def kneighbors(self, X, n_neighbors=1):
+    def kneighbors(
+        self,
+        X: np.ndarray,
+        n_neighbors: int = 1,
+    ):
         """Find the k nearest neighbors of each sample in X
 
         Args:
