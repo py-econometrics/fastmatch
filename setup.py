@@ -13,7 +13,7 @@ setup(
     author="Apoorva Lal",
     author_email="lal.apoorva@gmail.com",
     license="MIT",
-    install_requires=["numpy", "faiss-cpu", "scikit-learn"],
+    install_requires=["numpy", "faiss-cpu", "scikit-learn", "pdoc"],
     extras_require=extras_require,
     packages=["fastmatch"],
     zip_safe=False,
