@@ -1,4 +1,6 @@
 from .knn_faiss import FastNearestNeighbors
+from .knn_voyager import VoyagerNearestNeighbors
+from .knn_scikit import ScikitNearestNeighbors
 import numpy as np
 import copy
 
@@ -12,6 +14,7 @@ class Matching(object):
         estimand (str): The estimand to compute. Either "ATT" for average treatment effect on the treated or "ATE" for average treatment effect.
         k (int): Number of nearest neighbours to use for matching. Default is 1.
         bias_corr_mod (object): A model object to fit the bias correction term. Default is None.
+        backend (str): The backend to use for nearest neighbor search. One of "faiss", "voyager", or "scikit". Default is "faiss".
 
     """
 
@@ -20,10 +23,12 @@ class Matching(object):
         estimand: str,
         k=1,
         bias_corr_mod=None,
+        backend="faiss",
     ):
         self.estimand = estimand
         self.k = k
         self.bias_corr_mod = bias_corr_mod
+        self.backend = backend
 
     def fit(
         self,
@@ -32,7 +37,7 @@ class Matching(object):
         X: np.ndarray,
         **kwargs,
     ) -> tuple:
-        """
+        """Fit method for matching estimator.
 
         Args:
 
@@ -47,15 +52,15 @@ class Matching(object):
 
 
         Fit matching estimator for causal effects for specified estimand (ATE or ATT) and return point estimate and SE. Without bias correction, this is
-        $$
-        \hat{\\tau}^{ATT} = 1/N_1 \sum_{W_i = 1} \left( Y_i - 1/K \sum_{k=1}^K \hat{\mu}^{0, k}(X_i) \\right)
-        $$
+        $
+        \hat{\tau}^{ATT} = 1/N_1 \sum_{W_i = 1} \left( Y_i - 1/K \sum_{k=1}^K \hat{\mu}^{0, k}(X_i) \right)
+        $
 
-        where $\hat{\mu}^{0}(X_i)$ is average outcome of the $K$ matched units fit using `faiss`. With bias correction, the estimator is amended to
+        where $\hat{\mu}^{0}(X_i)$ is average outcome of the $K$ matched units fit using `faiss` or `voyager`. With bias correction, the estimator is amended to
 
-        $$
-        \hat{\\tau}^{ATT} = 1/N_1 \sum_{W_i = 1} \left( Y_i - 1/K \sum_{k=1}^K \hat{\mu}^{0, k}(X_i) - [\hat{\phi}^{0}(X_i) - \hat{\phi}(X_{j(i)}) ] \\right )
-        $$
+        $
+        \hat{\tau}^{ATT} = 1/N_1 \sum_{W_i = 1} \left( Y_i - 1/K \sum_{k=1}^K \hat{\mu}^{0, k}(X_i) - [\hat{\phi}^{0}(X_i) - \hat{\phi}(X_{j(i)}) ] \right )
+        $
 
         where the second term includes a bias adjustment using a regression function $\phi(x) = E[Y \mid X = x, w = 0]$ applied to the matching discrepancy (covariate discrepancy between a treated cell and its match); this collapses to zero when the covariate values match exactly. This estimator is doubly robust as the matching procedure implicitly estimates a density ratio. ATE analogues of the above involve matching symmetrically for both treatment and control units.
 
@@ -64,14 +69,22 @@ class Matching(object):
         - Abadie, A., and G. W. Imbens. 2011: “Bias-Corrected Matching Estimators for Average Treatment Effects,” Journal of business & economic statistics: a publication of the American Statistical Association, 29, 1–11.
         - Ding, Peng. A first course in causal inference. CRC Press, 2024. Chapter 15.
 
-
         """
 
         self._check_inputs(y, w, X)
 
+        if self.backend == "faiss":
+            knn_backend = FastNearestNeighbors
+        elif self.backend == "voyager":
+            knn_backend = VoyagerNearestNeighbors
+        elif self.backend == "scikit":
+            knn_backend = ScikitNearestNeighbors
+        else:
+            raise ValueError("Backend not supported. Choose 'faiss', 'voyager', or 'scikit'.")
+
         if self.estimand == "ATT":
             n, n1 = len(w), w.sum()
-            mod = FastNearestNeighbors(**kwargs)
+            mod = knn_backend(**kwargs)
             # create index on untreated obs
             treat_nn_mod = mod.fit(X[w == 0, :])
             # find neighbours for treated obs
@@ -104,7 +117,7 @@ class Matching(object):
         elif self.estimand == "ATE":
             n = len(w)
             # nearest neigbours : Ki
-            mod = FastNearestNeighbors(**kwargs)
+            mod = knn_backend(**kwargs)
             # find control neighbours for treat
             treat_nn_mod = mod.fit(X[w == 0, :])
             treat_neighbours = treat_nn_mod.kneighbors(X[w == 1, :], self.k)[1]
