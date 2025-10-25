@@ -1,3 +1,10 @@
 *.egg-info
 
 *__pycache__
+
+# Index persistence files
+*.index
+*.meta
+*.pkl
+
+.claude/*

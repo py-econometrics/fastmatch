@@ -1,5 +1,8 @@
 import numpy as np
 import faiss
+import json
+import os
+from datetime import datetime
 
 
 class FastNearestNeighbors:
@@ -117,3 +120,84 @@ class FastNearestNeighbors:
             cholvi = np.linalg.inv(chol)
             value = cholvi
         setattr(self, parameter, value)
+
+    def save(self, filepath: str):
+        """Save FAISS index and metadata to disk for persistence across sessions.
+
+        This saves two files:
+        - {filepath}.index : Binary FAISS index
+        - {filepath}.meta : JSON metadata with hyperparameters and auxiliary data
+
+        Args:
+            filepath (str): Base path for saving files (without extension)
+
+        Example:
+            model.save("./indices/control_pop")
+            # Creates: control_pop.index and control_pop.meta
+        """
+        if not hasattr(self, "index_"):
+            raise ValueError("Model must be fitted before saving. Call fit() first.")
+
+        index_path = f"{filepath}.index"
+        meta_path = f"{filepath}.meta"
+
+        faiss.write_index(self.index_, index_path)
+
+        metadata = {
+            "backend": "faiss",
+            "index_type": self.index_type,
+            "metric": self.metric,
+            "n_samples": self.index_.ntotal,
+            "n_features": self.index_.d,
+            "hyperparameters": {
+                "n_cells": self.n_cells,
+                "n_probes": self.n_probes,
+            },
+            "created_at": datetime.utcnow().isoformat(),
+            "version": "0.2.0",
+        }
+
+        if hasattr(self, "VI"):
+            metadata["covariance_matrix"] = self.VI.tolist()
+
+        with open(meta_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+    @classmethod
+    def load(cls, filepath: str):
+        """Load FAISS index and metadata from disk.
+
+        Args:
+            filepath (str): Base path to load from (without extension)
+
+        Returns:
+            FastNearestNeighbors: Loaded model ready for kneighbors() queries
+
+        Example:
+            model = FastNearestNeighbors.load("./indices/control_pop")
+            distances, indices = model.kneighbors(X_query, k=5)
+        """
+        index_path = f"{filepath}.index"
+        meta_path = f"{filepath}.meta"
+
+        if not os.path.exists(index_path):
+            raise FileNotFoundError(f"Index file not found: {index_path}")
+        if not os.path.exists(meta_path):
+            raise FileNotFoundError(f"Metadata file not found: {meta_path}")
+
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+
+        instance = cls(
+            metric=metadata["metric"],
+            index_type=metadata["index_type"],
+            n_cells=metadata["hyperparameters"]["n_cells"],
+            n_probes=metadata["hyperparameters"]["n_probes"],
+        )
+
+        instance.index_ = faiss.read_index(index_path)
+
+        if "covariance_matrix" in metadata:
+            instance.VI = np.array(metadata["covariance_matrix"])
+
+        return instance
