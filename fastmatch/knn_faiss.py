@@ -2,7 +2,7 @@ import numpy as np
 import faiss
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class FastNearestNeighbors:
@@ -50,7 +50,11 @@ class FastNearestNeighbors:
         Returns:
             self: Fitted object
         """
-        self._setattr("VI", np.cov(X, rowvar=False))
+        cov = np.cov(X, rowvar=False)
+        # np.cov returns scalar for single covariate, reshape to (1,1)
+        if cov.ndim == 0:
+            cov = cov.reshape(1, 1)
+        self._setattr("VI", cov)
         X = self._transform_covariates(X)
         if self.index_type == "flatl2":
             self.index_ = faiss.IndexFlatL2(X.shape[1])
@@ -153,7 +157,7 @@ class FastNearestNeighbors:
                 "n_cells": self.n_cells,
                 "n_probes": self.n_probes,
             },
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "version": "0.2.0",
         }
 

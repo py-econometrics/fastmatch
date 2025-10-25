@@ -2,7 +2,7 @@ import numpy as np
 import voyager
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class VoyagerNearestNeighbors:
@@ -81,7 +81,7 @@ class VoyagerNearestNeighbors:
             "space": self.space_str,
             "n_samples": len(self.index_),
             "n_features": self.index_.num_dimensions,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "version": "0.2.0",
         }
 

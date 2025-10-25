@@ -2,10 +2,10 @@ from .knn_faiss import FastNearestNeighbors
 from .knn_voyager import VoyagerNearestNeighbors
 from .knn_scikit import ScikitNearestNeighbors
 import numpy as np
-import copy
+import copy  # used only for bias correction models
 import pickle
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Matching(object):
@@ -40,7 +40,7 @@ class Matching(object):
         X: np.ndarray,
         **kwargs,
     ) -> tuple:
-        """Fit method for matching estimator.
+        r"""Fit method for matching estimator.
 
         Args:
 
@@ -75,6 +75,10 @@ class Matching(object):
         """
 
         self._check_inputs(y, w, X)
+
+        # Ensure X is 2D (handle single covariate case)
+        if X.ndim == 1:
+            X = X[:, np.newaxis]
 
         if self.backend == "faiss":
             knn_backend = FastNearestNeighbors
@@ -124,9 +128,8 @@ class Matching(object):
         elif self.estimand == "ATE":
             n = len(w)
             # nearest neigbours : Ki
-            mod = knn_backend(**kwargs)
             # find control neighbours for treat
-            treat_nn_mod = mod.fit(X[w == 0, :])
+            treat_nn_mod = knn_backend(**kwargs).fit(X[w == 0, :])
             self._fitted_control_mod = treat_nn_mod
             treat_neighbours = treat_nn_mod.kneighbors(X[w == 1, :], self.k)[1]
             # find treat neighbours for control
@@ -220,7 +223,7 @@ class Matching(object):
             raise ValueError("No fitted indices to save. Call fit() first.")
 
         os.makedirs(os.path.dirname(base_path) or ".", exist_ok=True)
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
         control_path = f"{base_path}_control_{self.backend}_{timestamp}"
         self._fitted_control_mod.save(control_path)
@@ -303,6 +306,10 @@ class Matching(object):
             raise ValueError("No pre-loaded indices found. Call load_indices() first.")
 
         self._check_inputs(y, w, X)
+
+        # Ensure X is 2D (handle single covariate case)
+        if X.ndim == 1:
+            X = X[:, np.newaxis]
 
         if self.estimand == "ATT":
             n, n1 = len(w), w.sum()
